@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="a6db61da-8627-420e-bed2-860ccf10d48d" >
+		<http:listener-connection host="0.0.0.0" port="9091" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="02c283a5-7abe-45dc-a6df-f1cf810b84cd" >
+		<http:request-connection connectionIdleTimeout="60000" />
+	</http:request-config>
+	<flow name="body" doc:id="87a42421-de32-4208-bbfa-2f3fd4bce1ca" >
+		<http:listener doc:name="Listener" doc:id="0ae04678-6ba8-4fa0-836b-9525cc608773" config-ref="HTTP_Listener_config" path="/body">
+		</http:listener>
+		<set-variable value="#[payload.city]" doc:name="city" doc:id="f44ae053-3286-41a1-91a8-61ed6f054c9a" variableName="city"/>
+		<http:request method="POST" doc:name="Request" doc:id="7257a2f7-b475-4eb9-8884-c6b88526484d" config-ref="HTTP_Request_configuration" url="https://api.openweathermap.org/data/2.5/weather" followRedirects="true">
+			<http:query-params><![CDATA[#[output application/java
+---
+{
+	q : vars.city,
+	appid : "7c5b9f89b746d1661081c9f45b0ea550"
+}]]]></http:query-params>
+			<http:response-validator>
+				<http:success-status-code-validator values="200..499" />
+			</http:response-validator>
+		</http:request>
+		<choice doc:name="Choice" doc:id="cfbce020-d71d-4ec7-8f23-6509c4f14910" >
+			<when expression='#[attributes.statusCode as String == "200"]'>
+				<ee:transform doc:name="Transform Message" doc:id="2b380d30-3782-4529-84de-5e8ae32ef59a">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"city": vars.city,
+	"min_temp" : (payload.main.temp_min as Number -273.15) as String ++ " Celcius",
+	
+	"max_temp": (payload.main.temp_max as Number -273.15) as String ++ " Cecius"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="bbe98e88-b618-45f0-be3b-e7bf4bb197ab" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="queryParam" doc:id="1c9e572d-6fd4-4ab4-8e72-28faeae41188" >
+		<http:listener doc:name="Listener" doc:id="73d26239-8621-4874-aa6a-32049ddca63d" config-ref="HTTP_Listener_config" path="/querry"/>
+		<http:request method="GET" doc:name="Request" doc:id="b5335efd-a80b-4e7d-afbd-fa7ae626b61b" config-ref="HTTP_Request_configuration" url="https://api.openweathermap.org/data/2.5/weather">
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	q : attributes.queryParams.q,
+	appid : "7c5b9f89b746d1661081c9f45b0ea550"
+}]]]></http:query-params>
+			<http:response-validator >
+				<http:success-status-code-validator values="200..499" />
+			</http:response-validator>
+		</http:request>
+		<choice doc:name="Choice" doc:id="936a0541-ef46-42af-9348-d91b2337024c" >
+			<when expression='#[attributes.statusCode as String == "200"]'>
+				<ee:transform doc:name="Transform Message" doc:id="0965faad-9f1d-403d-869a-8c12c0eb0c34">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	
+	"min_temp" : (payload.main.temp_min as Number -273.15) as String ++ " Celcius",
+	
+	"max_temp": (payload.main.temp_max as Number -273.15) as String ++ " Cecius"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="8516d39e-cbae-41a5-996b-4ab67bcc8740" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="uriParam" doc:id="762f0cf7-f9e2-4334-a112-a86c5cbe276b" >
+		<http:listener doc:name="Listener" doc:id="af7637fe-32ca-4f6c-bd91-84af0c7a679a" config-ref="HTTP_Listener_config" path="/uri/{name}"/>
+		<http:request method="GET" doc:name="Request" doc:id="335b6382-c8c3-43e0-bdce-1805c3f287be" config-ref="HTTP_Request_configuration" url="https://api.openweathermap.org/data/2.5/weather">
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"name" : attributes.uriParams.name,
+	"apiid" : "7c5b9f89b746d1661081c9f45b0ea550"
+}]]]></http:uri-params>
+		</http:request>
+		<ee:transform doc:name="Transform Message" doc:id="b10e9244-6223-419c-bf6d-dd19a236833c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
